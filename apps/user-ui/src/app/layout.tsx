@@ -1,9 +1,11 @@
 import { Poppins, Roboto } from "next/font/google";
+import { Toaster } from "react-hot-toast";
 import Header from "../shared/widgets/header";
 import "./global.css";
+import Providers from "./providers";
 export const metadata = {
-  title: "E-commerce",
-  description: "E-commerce",
+  title: "Luxora",
+  description: "Luxora",
 };
 
 const roboto = Roboto({
@@ -25,8 +27,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${roboto.variable} ${poppins.variable}`}>
-        <Header />
-        {children}
+        <Providers>
+          <Header />
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );

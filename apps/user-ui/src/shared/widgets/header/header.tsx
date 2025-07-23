@@ -7,7 +7,7 @@ const Header = () => {
       <div className="w-[80%] py-5 m-auto flex items-center justify-between">
         <div>
           <Link href={"/"}>
-            <span className="text-3xl font-medium">Ecommerce</span>
+            <span className="text-3xl font-medium">Luxora</span>
           </Link>
         </div>
 
