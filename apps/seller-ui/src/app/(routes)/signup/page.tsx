@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import CreateShop from "apps/seller-ui/src/shared/modules/auth/create-shop";
 import { countries } from "apps/seller-ui/src/utils/countries";
 import { AxiosError } from "axios";
 import { Eye, EyeOff } from "lucide-react";
@@ -16,9 +17,10 @@ const Signup = () => {
   const [canResend, setCanResend] = useState(false);
   const [timer, setTimer] = useState(60);
   const [otp, setOtp] = useState(["", "", "", ""]);
-  const [userData, setUserData] = useState<FormData | null>(null);
+  const [sellerData, setSellerData] = useState<FormData | null>(null);
+  const [sellerId, setSellerId] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const [activeStep, setActiveStep] = useState(1);
+  const [activeStep, setActiveStep] = useState(2);
   const router = useRouter();
 
   const {
@@ -42,11 +44,11 @@ const Signup = () => {
 
   const signupMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await api.post("/user-registration", data);
+      const response = await api.post("/seller-registration", data);
       return response.data;
     },
     onSuccess: (_, formData) => {
-      setUserData(formData);
+      setSellerData(formData);
       setShowOtp(true);
       setCanResend(false);
       setTimer(60);
@@ -56,15 +58,16 @@ const Signup = () => {
 
   const verifyOtpMutation = useMutation({
     mutationFn: async () => {
-      if (!userData) return;
-      const response = await api.post("/verify-user", {
-        ...userData,
+      if (!sellerData) return;
+      const response = await api.post("/verify-seller", {
+        ...sellerData,
         otp: otp.join(""),
       });
       return response.data;
     },
-    onSuccess: () => {
-      router.push("/login");
+    onSuccess: (data) => {
+      setSellerId(data?.seller?.id);
+      setActiveStep(2);
     },
   });
 
@@ -94,8 +97,8 @@ const Signup = () => {
   };
 
   const resendOtp = () => {
-    if (userData) {
-      signupMutation.mutate(userData);
+    if (sellerData) {
+      signupMutation.mutate(sellerData);
     }
   };
 
@@ -335,6 +338,10 @@ const Signup = () => {
               </div>
             )}
           </>
+        )}
+
+        {activeStep === 2 && (
+          <CreateShop sellerId={sellerId} setActiveStep={setActiveStep} />
         )}
       </div>
     </div>
