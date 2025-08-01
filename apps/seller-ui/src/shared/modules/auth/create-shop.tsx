@@ -118,7 +118,7 @@ const CreateShop = ({
           className="w-full p-2 border border-gray-300 outline-none !rounded mb-1"
           {...register("website", {
             pattern: {
-              value: /&(https?:\/\/)?([\w\d-]+\.)+\w{2,}(\/.*)?$/,
+              value: /^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/[\w\W]*)?$/,
               message: "Enter valid url",
             },
           })}
