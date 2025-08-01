@@ -1,12 +1,16 @@
+import { isSeller } from "@packages/middleware/authorizeRoles";
 import isAuthenticated from "@packages/middleware/isAuthenticated";
 import express, { Router } from "express";
 import {
   createShop,
+  createStripeConnectLink,
+  getSeller,
   getUser,
   loginUser,
   refreshToken,
   registerSeller,
   resetUserPassword,
+  sellerLogin,
   userForgotPassword,
   userRegistration,
   verifySeller,
@@ -27,5 +31,7 @@ router.post("/verify-forgot-password-user", verifyUserForgotPassword);
 router.post("/seller-registration", registerSeller);
 router.post("/verify-seller", verifySeller);
 router.post("/create-shop", createShop);
-
+router.post("/create-stripe-link", createStripeConnectLink);
+router.post("/login-seller", sellerLogin);
+router.get("/logged-in-seller", isAuthenticated, isSeller, getSeller);
 export default router;
