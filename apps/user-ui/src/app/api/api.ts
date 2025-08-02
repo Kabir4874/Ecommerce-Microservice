@@ -52,7 +52,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
       try {
-        await api.post("/refresh-token-user");
+        await api.post("/refresh-token");
         isRefreshing = false;
         onRefreshSuccess();
         return api(originalRequest);

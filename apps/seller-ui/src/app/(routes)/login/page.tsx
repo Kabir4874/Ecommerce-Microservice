@@ -27,7 +27,7 @@ const Login = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await api.post("/login-user", data);
+      const response = await api.post("/login-seller", data);
       return response.data;
     },
     onSuccess: (data) => {
