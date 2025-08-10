@@ -2,6 +2,9 @@
 
 import ImagePlaceHolder from "apps/seller-ui/src/shared/components/image-placeholder/image";
 import { ChevronRight } from "lucide-react";
+import ColorSelector from "packages/components/color-selector";
+import CustomProperties from "packages/components/custom-properties";
+import CustomSpecifications from "packages/components/custom-specifications";
 import Input from "packages/components/input";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -206,7 +209,17 @@ const Page = () => {
                 )}
               </div>
 
-              <div className="mt-2"></div>
+              <div className="mt-2">
+                <ColorSelector control={control} errors={errors} />
+              </div>
+
+              <div className="mt-2">
+                <CustomSpecifications control={control} errors={errors} />
+              </div>
+
+              <div className="mt-2">
+                <CustomProperties control={control} errors={errors} />
+              </div>
             </div>
           </div>
         </div>
