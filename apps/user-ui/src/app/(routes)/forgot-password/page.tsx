@@ -46,7 +46,7 @@ const ForgotPassword = () => {
 
   const requestOtpMutation = useMutation({
     mutationFn: async ({ email }: { email: string }) => {
-      const response = await api.post("/forgot-password-user", { email });
+      const response = await api.post("/api/forgot-password-user", { email });
       return response.data;
     },
     onSuccess: (_, { email }) => {

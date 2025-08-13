@@ -18,7 +18,7 @@ const CreateShop = ({
 
   const shopCreateMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await api.post("/create-shop", data);
+      const response = await api.post("/api/create-shop", data);
       return response.data;
     },
     onSuccess: () => {

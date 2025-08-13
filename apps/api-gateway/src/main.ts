@@ -5,6 +5,7 @@ import proxy from "express-http-proxy";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import morgan from "morgan";
 import * as path from "path";
+import initializeSiteConfig from "./libs/initializeSiteConfig";
 const app = express();
 
 app.use(
@@ -35,6 +36,7 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
+app.use("/product", proxy("http://localhost:6002"));
 app.use("/", proxy("http://localhost:6001"));
 
 app.use("/assets", express.static(path.join(__dirname, "assets")));
@@ -46,5 +48,11 @@ app.get("/gateway-health", (req, res) => {
 const port = process.env.PORT || 8080;
 const server = app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}/api`);
+  try {
+    initializeSiteConfig();
+    console.log("Site config initialized successfully");
+  } catch (error) {
+    console.error("Failed to initialize site config: ", error);
+  }
 });
 server.on("error", console.error);
