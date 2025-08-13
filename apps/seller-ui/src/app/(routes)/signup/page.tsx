@@ -43,7 +43,7 @@ const Signup = () => {
 
   const signupMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await api.post("/seller-registration", data);
+      const response = await api.post("/api/seller-registration", data);
       return response.data;
     },
     onSuccess: (_, formData) => {
@@ -58,7 +58,7 @@ const Signup = () => {
   const verifyOtpMutation = useMutation({
     mutationFn: async () => {
       if (!sellerData) return;
-      const response = await api.post("/verify-seller", {
+      const response = await api.post("/api/verify-seller", {
         ...sellerData,
         otp: otp.join(""),
       });
@@ -103,7 +103,7 @@ const Signup = () => {
 
   const connectStripe = async () => {
     try {
-      const response = await api.post("/create-stripe-link", { sellerId });
+      const response = await api.post("/api/create-stripe-link", { sellerId });
       if (response.data.url) {
         window.location.href = response.data.url;
       }

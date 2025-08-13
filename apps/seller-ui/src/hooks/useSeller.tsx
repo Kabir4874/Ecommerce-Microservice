@@ -3,7 +3,7 @@ import api from "../app/api/api";
 
 // !fetch seller data from API
 const fetchSeller = async () => {
-  const response = await api.get("/logged-in-seller");
+  const response = await api.get("/api/logged-in-seller");
   return response.data.seller;
 };
 
