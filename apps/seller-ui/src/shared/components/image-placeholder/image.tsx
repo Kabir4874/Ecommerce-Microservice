@@ -10,6 +10,9 @@ interface Props {
   defaultImage?: string | null;
   index?: any;
   setOpenImageModal: (openImageModal: boolean) => void;
+  setSelectedImage: (e: string) => void;
+  images: any;
+  pictureUploadingLoader: boolean;
 }
 
 const ImagePlaceHolder = ({
@@ -20,6 +23,9 @@ const ImagePlaceHolder = ({
   defaultImage = null,
   index = null,
   setOpenImageModal,
+  setSelectedImage,
+  images,
+  pictureUploadingLoader,
 }: Props) => {
   const [imagePreview, setImagePreview] = useState<string | null>(defaultImage);
 
@@ -46,6 +52,7 @@ const ImagePlaceHolder = ({
       {imagePreview ? (
         <>
           <button
+            disabled={pictureUploadingLoader}
             type="button"
             onClick={() => onRemove?.(index!)}
             className="absolute top-3 right-3 p-2 !rounded bg-red-600 shadow-lg"
@@ -53,8 +60,12 @@ const ImagePlaceHolder = ({
             <X size={16} />
           </button>
           <button
+            disabled={pictureUploadingLoader}
             className="absolute top-3 right-[70px] p-2 !rounded bg-blue-500 shadow-lg cursor-pointer"
-            onClick={() => setOpenImageModal(true)}
+            onClick={() => {
+              setOpenImageModal(true);
+              setSelectedImage(images[index].file_url);
+            }}
           >
             <WandSparkles size={16} />
           </button>
