@@ -1,5 +1,9 @@
-import { NotFoundError, ValidationError } from "@packages/error-handler";
-import { imagekit } from "@packages/libs/imagekit";
+import {
+  AuthError,
+  NotFoundError,
+  ValidationError,
+} from "@packages/error-handler";
+import { uploadImageToImageKit } from "@packages/libs/imagekit";
 import prisma from "@packages/libs/prisma";
 import { NextFunction, Request, Response } from "express";
 
@@ -117,43 +121,116 @@ export const deleteDiscountCode = async (
   }
 };
 
-// !upload product image
-export const uploadProductImage = async (
-  req: Request,
+// !create product
+export const createProduct = async (
+  req: Request & { seller?: any },
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { fileName } = req.body;
-    const response = await imagekit.upload({
-      file: fileName,
-      fileName: `product-${Math.floor(
-        1000 + Math.random() * 9000
-      )}-${Date.now()}.jpg`,
-      folder: "/products",
-    });
-    res.status(201).json({
-      file_url: response.url,
-      fileId: response.fileId,
-    });
-  } catch (error) {
-    return next(error);
-  }
-};
+    const {
+      title,
+      short_description,
+      detailed_description,
+      warranty,
+      custom_specifications,
+      slug,
+      tags,
+      cash_on_delivery,
+      brand,
+      video_url,
+      category,
+      colors = [],
+      sizes = [],
+      discountCodes = [],
+      stock,
+      sale_price,
+      regular_price,
+      subCategory,
+      customProperties = {},
+      images = [],
+    } = req.body;
 
-// !delete product image
-export const deleteProductImage = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { fileId } = req.body;
-    console.log(fileId, "fileId");
-    const response = await imagekit.deleteFile(fileId);
+    if (
+      !title ||
+      !slug ||
+      !short_description ||
+      !category ||
+      !subCategory ||
+      !sale_price ||
+      !tags ||
+      !stock ||
+      !regular_price
+    ) {
+      throw new ValidationError("Missing required fields");
+    }
+
+    if (!req.seller?.id) {
+      throw new AuthError("Only seller can create product");
+    }
+
+    const slugChecking = await prisma.products.findUnique({ where: { slug } });
+    if (slugChecking) {
+      throw new ValidationError(
+        "Slug already exist! Please use a different slug!"
+      );
+    }
+
+    if (!Array.isArray(images)) {
+      throw new ValidationError("Invalid images payload");
+    }
+
+    const uploaded = await Promise.all(
+      images.map(async (base64: string) => {
+        const { file_url, fileId } = await uploadImageToImageKit(base64, {
+          folder: "/products",
+        });
+        return { fileId, file_url };
+      })
+    );
+
+    const tagsArray = Array.isArray(tags)
+      ? tags
+      : String(tags)
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+    const newProduct = await prisma.products.create({
+      data: {
+        title,
+        short_description,
+        detailed_description,
+        warranty,
+        cashOnDelivery: cash_on_delivery,
+        slug,
+        shopId: req.seller?.shop?.id!,
+        tags: tagsArray,
+        brand,
+        video_url,
+        category,
+        subCategory,
+        colors,
+        discount_codes: discountCodes.map((codeId: string) => codeId),
+        sizes,
+        stock: Number.parseInt(stock, 10),
+        sale_price: Number.parseFloat(sale_price),
+        regular_price: Number.parseFloat(regular_price),
+        custom_properties: customProperties || {},
+        custom_specifications: custom_specifications || {},
+        images: {
+          create: uploaded.map((img) => ({
+            file_id: img.fileId,
+            url: img.file_url,
+          })),
+        },
+      },
+      include: { images: true },
+    });
+
     res.status(201).json({
       success: true,
-      response,
+      newProduct,
     });
   } catch (error) {
     return next(error);

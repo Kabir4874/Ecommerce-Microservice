@@ -1,25 +1,49 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import ImagePlaceHolder from "apps/seller-ui/src/shared/components/image-placeholder/image";
-import { enhancements } from "apps/seller-ui/src/utils/ai.enhancement";
-import { ChevronRight, Wand, X } from "lucide-react";
-import Image from "next/image";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ColorSelector from "packages/components/color-selector";
 import CustomProperties from "packages/components/custom-properties";
 import CustomSpecifications from "packages/components/custom-specifications";
 import Input from "packages/components/input";
 import RichTextEditor from "packages/components/rich-text-editor";
 import SizeSelector from "packages/components/size-selector";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import api from "../../../api/api";
 
-interface UploadedImage {
-  fileId: string;
-  file_url: string;
-}
+type LocalImage = {
+  file: File;
+  preview: string;
+};
+
+type FormValues = {
+  title: string;
+  short_description: string;
+  tags: string;
+  warranty: string;
+  slug: string;
+  brand?: string;
+  cash_on_delivery: "yes" | "no";
+  category: string;
+  subcategory: string;
+  detailed_description: string;
+  video_url?: string;
+  regular_price: number;
+  sale_price: number;
+  stock: number;
+  discountCodes: string[];
+  colors: string[];
+  sizes: string[];
+  custom_specifications: Record<string, any>;
+  customProperties: Record<string, any>;
+  images: (LocalImage | null)[];
+};
+
+const MAX_IMAGES = 8;
 
 const Page = () => {
   const {
@@ -29,25 +53,28 @@ const Page = () => {
     setValue,
     handleSubmit,
     formState: { errors },
-  } = useForm();
+  } = useForm<FormValues>({
+    defaultValues: {
+      discountCodes: [],
+      cash_on_delivery: "yes",
+      images: [null],
+      colors: [],
+      sizes: [],
+      custom_specifications: {},
+      customProperties: {},
+    },
+  });
 
-  const [openImageModal, setOpenImageModal] = useState(false);
-  const [selectedImage, setSelectedImage] = useState("");
-  const [isChanged, setIsChanged] = useState(true);
-  const [images, setImages] = useState<(UploadedImage | null)[]>([null]);
-  const [loading, setLoading] = useState(false);
-  const [pictureUploadingLoader, setPictureUploadingLoader] = useState(false);
-  const [activeEffect, setActiveEffect] = useState<string | null>(null);
+  const [isChanged, setIsChanged] = useState(false);
+  const [images, setImages] = useState<(LocalImage | null)[]>([null]);
+  const [pictureUploadingLoader] = useState(false);
+  const router = useRouter();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/product/api/get-categories");
-        return res.data;
-      } catch (error) {
-        console.log(error);
-      }
+      const res = await api.get("/product/api/get-categories");
+      return res.data;
     },
     staleTime: 1000 * 60 * 5,
     retry: 2,
@@ -63,86 +90,110 @@ const Page = () => {
 
   const categories = data?.categories || [];
   const subCategoriesData = data?.subCategories || {};
-
   const selectedCategory = watch("category");
   const regularPrice = watch("regular_price");
 
-  const subCategories = useMemo(() => {
-    return selectedCategory ? subCategoriesData[selectedCategory] || [] : [];
-  }, [selectedCategory, subCategoriesData]);
+  const subCategories = useMemo(
+    () => (selectedCategory ? subCategoriesData[selectedCategory] || [] : []),
+    [selectedCategory, subCategoriesData]
+  );
 
-  const convertFileToBase64 = (file: File) => {
-    return new Promise((resolve, reject) => {
+  const ensureTrailingNull = useCallback((arr: (LocalImage | null)[]) => {
+    const nonNull = arr.filter(Boolean) as LocalImage[];
+    const limited = nonNull.slice(0, MAX_IMAGES);
+    if (limited.length === 0) return [null];
+    if (limited.length < MAX_IMAGES) return [...limited, null];
+    return limited;
+  }, []);
+
+  const syncImages = useCallback(
+    (next: (LocalImage | null)[]) => {
+      const normalized = ensureTrailingNull(next);
+      setImages(normalized);
+      setValue("images", normalized, { shouldDirty: true, shouldTouch: true });
+      setIsChanged(true);
+    },
+    [ensureTrailingNull, setValue]
+  );
+
+  const handleFilesSelected = (files: File[], startIndex: number) => {
+    if (!files.length) return;
+
+    const withPreviews = files.map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+
+    const next = [...images];
+
+    if (next[startIndex]) {
+      next[startIndex] = withPreviews[0];
+      let cursor = startIndex + 1;
+      for (let i = 1; i < withPreviews.length && cursor < MAX_IMAGES; i++) {
+        next[cursor] = withPreviews[i];
+        cursor++;
+      }
+    } else {
+      let cursor = startIndex;
+      for (let i = 0; i < withPreviews.length && cursor < MAX_IMAGES; i++) {
+        next[cursor] = withPreviews[i];
+        cursor++;
+      }
+    }
+
+    syncImages(next);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const next = [...images];
+    next[index] = null;
+    syncImages(next);
+  };
+
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
       reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
     });
+
+  const createProductMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.post("/product/api/create-product", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      router.push("/dashboard/all-products");
+    },
+  });
+
+  const onSubmit = async (form: FormValues) => {
+    const picked = images.filter(Boolean) as LocalImage[];
+    const imagesBase64 = await Promise.all(
+      picked.map(({ file }) => fileToBase64(file))
+    );
+
+    const payload = {
+      ...form,
+      subCategory: form.subcategory,
+      images: imagesBase64,
+    };
+
+    createProductMutation.mutate(payload);
   };
 
-  const handleImageChange = async (file: File | null, index: number) => {
-    if (!file) return;
-    setPictureUploadingLoader(true);
-    try {
-      const fileName = await convertFileToBase64(file);
-      const response = await api.post("/product/api/upload-product-image", {
-        fileName,
-      });
-
-      const uploadedImage: UploadedImage = {
-        fileId: response.data.fileId,
-        file_url: response.data.file_url,
-      };
-
-      const updatedImages = [...images];
-
-      updatedImages[index] = uploadedImage;
-
-      if (index === images.length - 1 && updatedImages.length < 8) {
-        updatedImages.push(null);
-      }
-      setImages(updatedImages);
-      setValue("images", updatedImages);
-    } catch (error) {
-      console.log(error);
-    } finally {
-      setPictureUploadingLoader(false);
-    }
+  const handleSaveDraft = () => {
+    setIsChanged(false);
   };
 
-  const handleRemoveImage = async (index: number) => {
-    try {
-      const updatedImages = [...images];
-      const imageToDelete = updatedImages[index];
-      if (imageToDelete && typeof imageToDelete === "object") {
-        await api.delete("/product/api/delete-product-image", {
-          data: { fileId: imageToDelete.fileId },
-        });
-      }
-
-      updatedImages.splice(index, 1);
-
-      if (!updatedImages.includes(null) && updatedImages.length < 8) {
-        updatedImages.push(null);
-      }
-      setImages(updatedImages);
-      setValue("images", updatedImages);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const onSubmit = (data: any) => {
-    console.log(data);
-  };
-
-  const handleSaveDraft = () => {};
   return (
     <form
+      id="createProductForm"
       onSubmit={handleSubmit(onSubmit)}
       className="w-full mx-auto p-8 shadow-md rounded-lg text-white"
     >
-      {/* heading & breadcrumbs  */}
+      {/* heading & breadcrumbs */}
       <h2 className="text-2xl py-2 font-semibold font-Poppins text-white">
         Create Product
       </h2>
@@ -154,45 +205,41 @@ const Page = () => {
         <span>Create Product</span>
       </div>
 
-      {/* content layout  */}
+      {/* content layout */}
       <div className="py-4 w-full flex gap-6">
-        {/* left side -> image upload section */}
+        {/* left side -> images */}
         <div className="md:w-[35%]">
           {images?.length > 0 && (
             <ImagePlaceHolder
               size="765 x 850"
-              setOpenImageModal={setOpenImageModal}
               small={false}
               index={0}
-              onImageChange={handleImageChange}
-              setSelectedImage={setSelectedImage}
+              onFilesSelected={handleFilesSelected}
               onRemove={handleRemoveImage}
               images={images}
               pictureUploadingLoader={pictureUploadingLoader}
             />
           )}
           <div className="grid grid-cols-2 gap-3 mt-4">
-            {images.slice(1).map((_, index) => (
+            {images.slice(1).map((_, idx) => (
               <ImagePlaceHolder
-                key={index}
+                key={`slot-${idx + 1}-${images[idx + 1]?.preview ?? "null"}`}
                 size="765 x 850"
-                setOpenImageModal={setOpenImageModal}
-                small={true}
-                index={index + 1}
-                onImageChange={handleImageChange}
-                setSelectedImage={setSelectedImage}
+                small
+                index={idx + 1}
+                onFilesSelected={handleFilesSelected}
                 onRemove={handleRemoveImage}
-                pictureUploadingLoader={pictureUploadingLoader}
                 images={images}
+                pictureUploadingLoader={pictureUploadingLoader}
               />
             ))}
           </div>
         </div>
 
-        {/* right side -> form inputs  */}
+        {/* right side -> form inputs */}
         <div className="md:w-[65%]">
           <div className="w-full flex gap-6">
-            {/* product title input  */}
+            {/* left column */}
             <div className="w-2/4">
               <Input
                 label="Product Title *"
@@ -204,6 +251,7 @@ const Page = () => {
                   {errors.title.message as string}
                 </p>
               )}
+
               <div className="mt-2">
                 <Input
                   type="textarea"
@@ -211,10 +259,13 @@ const Page = () => {
                   cols={10}
                   label="Short Description * (Max 150 words)"
                   placeholder="Enter product description for quick view"
-                  {...register("description", {
-                    required: "Description is required",
+                  {...register("short_description", {
+                    required: "Short Description is required",
                     validate: (value) => {
-                      const wordCount = value.trim().split(/\s+/).length;
+                      const wordCount = String(value ?? "")
+                        .trim()
+                        .split(/\s+/)
+                        .filter(Boolean).length;
                       return (
                         wordCount <= 150 ||
                         `Description can't exceed 150 words (Current: ${wordCount})`
@@ -222,18 +273,20 @@ const Page = () => {
                     },
                   })}
                 />
-                {errors.description && (
+                {errors.short_description && (
                   <p className="text-red-500 text-xs mt-1">
-                    {errors.description.message as string}
+                    {errors.short_description.message as string}
                   </p>
                 )}
               </div>
+
               <div className="mt-2">
                 <Input
                   label="Tags *"
                   placeholder="apple,flagship"
                   {...register("tags", {
-                    required: "Separate related products tags with a coma,",
+                    required:
+                      "Tags are required. Separate related product tags with a comma.",
                   })}
                 />
                 {errors.tags && (
@@ -267,16 +320,10 @@ const Page = () => {
                     pattern: {
                       value: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
                       message:
-                        "Invalid slug format! use only lowercase letters, numbers and hyphens",
+                        "Invalid slug format! Use only lowercase letters, numbers and hyphens",
                     },
-                    minLength: {
-                      value: 3,
-                      message: "Slug must be at least 3 characters long.",
-                    },
-                    maxLength: {
-                      value: 50,
-                      message: "Slug can't be longer than 50 characters",
-                    },
+                    minLength: { value: 3, message: "Min 3 characters" },
+                    maxLength: { value: 50, message: "Max 50 characters" },
                   })}
                 />
                 {errors.slug && (
@@ -312,14 +359,10 @@ const Page = () => {
               </div>
 
               <div className="mt-2">
-                <label
-                  htmlFor=""
-                  className="block font-semibold text-gray-300 mb-1"
-                >
+                <label className="block font-semibold text-gray-300 mb-1">
                   Cash On Delivery *
                 </label>
                 <select
-                  defaultValue="yes"
                   {...register("cash_on_delivery", {
                     required: "Cash on delivery is required",
                   })}
@@ -340,11 +383,9 @@ const Page = () => {
               </div>
             </div>
 
+            {/* right column */}
             <div className="w-2/4">
-              <label
-                htmlFor=""
-                className="block font-semibold text-gray-300 mb-1"
-              >
+              <label className="block font-semibold text-gray-300 mb-1">
                 Category *
               </label>
 
@@ -386,10 +427,7 @@ const Page = () => {
               )}
 
               <div className="mt-2">
-                <label
-                  htmlFor=""
-                  className="block font-semibold text-gray-300 mb-1"
-                >
+                <label className="block font-semibold text-gray-300 mb-1">
                   Subcategory *
                 </label>
                 <Controller
@@ -426,10 +464,7 @@ const Page = () => {
               </div>
 
               <div className="mt-2">
-                <label
-                  htmlFor=""
-                  className="block font-semibold text-gray-300 mb-1"
-                >
+                <label className="block font-semibold text-gray-300 mb-1">
                   Detailed Description * (Min 100 words)
                 </label>
                 <Controller
@@ -439,8 +474,8 @@ const Page = () => {
                   rules={{
                     required: "Detailed description is required",
                     validate: (value) => {
-                      const wordCount = value
-                        ?.split(/\s+/)
+                      const wordCount = String(value ?? "")
+                        .split(/\s+/)
                         .filter((word: string) => word).length;
                       return (
                         wordCount >= 100 ||
@@ -469,9 +504,9 @@ const Page = () => {
                   {...register("video_url", {
                     pattern: {
                       value:
-                        /^https:\/\/(www\.)?youtube\.com\/embed\/[a-zA-Z0-9_-]+$/,
+                        /^https:\/\/(www\.)?youtube\.com\/(embed\/[a-zA-Z0-9_-]+|watch\?v=[a-zA-Z0-9_-]+)$/,
                       message:
-                        "Invalid YouTube embed URL! Use format: https://www.youtube.com/embed/xyz123",
+                        "Invalid YouTube URL! Use format: https://www.youtube.com/embed/xyz123 or https://www.youtube.com/watch?v=xyz123",
                     },
                   })}
                 />
@@ -487,6 +522,7 @@ const Page = () => {
                   label="Regular Price *"
                   placeholder="$20"
                   {...register("regular_price", {
+                    required: "Regular price is required",
                     valueAsNumber: true,
                     min: { value: 1, message: "Price must be at least 1" },
                     validate: (value) =>
@@ -499,11 +535,13 @@ const Page = () => {
                   </p>
                 )}
               </div>
+
               <div className="mt-2">
                 <Input
                   label="Sale Price *"
                   placeholder="$15"
                   {...register("sale_price", {
+                    required: "Sale price is required",
                     valueAsNumber: true,
                     min: { value: 1, message: "Price must be at least 1" },
                     validate: (value) => {
@@ -529,10 +567,7 @@ const Page = () => {
                     required: "Stock is required",
                     valueAsNumber: true,
                     min: { value: 1, message: "Stock must be at least 1" },
-                    max: {
-                      value: 1000,
-                      message: "Stock cannot exceed 1000",
-                    },
+                    max: { value: 1000, message: "Stock cannot exceed 1000" },
                     validate: (value) => {
                       if (isNaN(value)) return "Only number are allowed";
                       if (!Number.isInteger(value))
@@ -553,10 +588,7 @@ const Page = () => {
               </div>
 
               <div className="mt-3">
-                <label
-                  htmlFor=""
-                  className="block font-semibold text-gray-300 mb-1"
-                >
+                <label className="block font-semibold text-gray-300 mb-1">
                   Select Discount Codes (optional)
                 </label>
                 {discountLoading ? (
@@ -573,16 +605,15 @@ const Page = () => {
                             : "bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
                         }`}
                         onClick={() => {
-                          const currentSelection = watch("discountCodes") || [];
-                          const updatedSelection = currentSelection?.includes(
-                            code.id
-                          )
-                            ? currentSelection.filter(
-                                (id: string) => id !== code.id
-                              )
-                            : [...currentSelection, code.id];
-
-                          setValue("discountCodes", updatedSelection);
+                          const current = watch("discountCodes") || [];
+                          const updated = current.includes(code.id)
+                            ? current.filter((id: string) => id !== code.id)
+                            : [...current, code.id];
+                          setValue("discountCodes", updated, {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                          });
+                          setIsChanged(true);
                         }}
                       >
                         {code?.public_name} ({code.discountValue}
@@ -597,46 +628,7 @@ const Page = () => {
         </div>
       </div>
 
-      {openImageModal && (
-        <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-black bg-opacity-60 z-50">
-          <div className="bg-gray-800 p-6 rounded-lg w-[450px] text-white">
-            <div className="flex justify-between items-center pb-3 mb-4">
-              <h2 className="text-lg font-semibold">Enhance Product Image</h2>
-              <X
-                size={20}
-                className="cursor-pointer"
-                onClick={() => setOpenImageModal(!openImageModal)}
-              />
-            </div>
-
-            <div className="relative w-full h-[250px] rounded-md overflow-hidden border border-gray-600">
-              <Image src={selectedImage} alt="product-image" layout="fill" />
-            </div>
-            {selectedImage && (
-              <div className="mt-4 space-y-2">
-                <h3 className="text-white text-sm font-semibold">
-                  AI Enhancements
-                </h3>
-                <div className="grid grid-cols-2 gap-3 max-h-[250px] overflow-y-auto">
-                  {enhancements?.map(({ label, effect }) => (
-                    <button
-                      key={effect}
-                      className={`p-2 rounded-md flex items-center gap-2 ${
-                        activeEffect === effect
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-700 hover:bg-gray-600"
-                      }`}
-                    >
-                      <Wand size={18} /> {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
+      {/* actions */}
       <div className="mt-6 flex justify-end gap-3">
         {isChanged && (
           <button
@@ -649,10 +641,11 @@ const Page = () => {
         )}
         <button
           type="submit"
+          form="createProductForm"
           className="px-4 py-2 bg-blue-600 text-white rounded-md"
-          disabled={loading}
+          disabled={createProductMutation.isPending}
         >
-          {loading ? "Creating..." : "Create"}
+          {createProductMutation.isPending ? "Creating..." : "Create"}
         </button>
       </div>
     </form>

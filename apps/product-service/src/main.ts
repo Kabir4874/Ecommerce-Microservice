@@ -6,7 +6,8 @@ import swaggerUi from "swagger-ui-express";
 import router from "./routes/product.routes";
 const swaggerDocument = require("./swagger-output.json");
 const app = express();
-
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(
   cors({
     origin: ["http://localhost:3000"],
