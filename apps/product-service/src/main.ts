@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import swaggerUi from "swagger-ui-express";
+import "./jobs/product-crone.job";
 import router from "./routes/product.routes";
 const swaggerDocument = require("./swagger-output.json");
 const app = express();
