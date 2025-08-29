@@ -17,6 +17,9 @@ const nextConfig = {
       {
         hostname: "ik.imagekit.io",
       },
+      {
+        hostname: "developers.elementor.com",
+      },
     ],
   },
 };

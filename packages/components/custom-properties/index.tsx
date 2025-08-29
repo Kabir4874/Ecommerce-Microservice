@@ -1,55 +1,98 @@
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Controller } from "react-hook-form";
 import Input from "../input";
 
 type Property = { label: string; values: string[] };
 
-const CustomProperties = ({ control, errors }: any) => {
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [newLabel, setNewLabel] = useState("");
-  const [newValue, setNewValue] = useState("");
+interface Props {
+  control: any;
+  errors?: any;
+}
 
+function propsEqual(a?: Property[] | null, b?: Property[] | null) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].label !== b[i].label) return false;
+    const va = a[i].values;
+    const vb = b[i].values;
+    if (va.length !== vb.length) return false;
+    for (let j = 0; j < va.length; j++) {
+      if (va[j] !== vb[j]) return false;
+    }
+  }
+  return true;
+}
+
+const CustomProperties: React.FC<Props> = ({ control, errors }) => {
   return (
     <div>
       <div className="flex flex-col gap-3">
         <Controller
           name="customProperties"
           control={control}
-          defaultValue={[]}
+          defaultValue={[] as Property[]}
           render={({ field }) => {
-            // helper to update local state and RHF at the same time
-            const updateProps = (
-              next: Property[] | ((prev: Property[]) => Property[])
-            ) => {
-              setProperties((prev) => {
-                const resolved =
-                  typeof next === "function" ? (next as any)(prev) : next;
-                field.onChange(resolved);
-                return resolved;
-              });
-            };
+            // Initialize local state from RHF value once
+            const [properties, setProperties] = useState<Property[]>(
+              Array.isArray(field.value) ? field.value : []
+            );
+            // Per-property pending input values
+            const [newValues, setNewValues] = useState<Record<number, string>>(
+              {}
+            );
+            const [newLabel, setNewLabel] = useState("");
+
+            // Sync local -> RHF only when different (prevents infinite loops)
+            useEffect(() => {
+              if (!propsEqual(field.value as Property[], properties)) {
+                field.onChange(properties);
+              }
+              // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [properties]);
+
+            // Sync RHF -> local (e.g., on form reset) only when different
+            useEffect(() => {
+              const incoming = Array.isArray(field.value)
+                ? (field.value as Property[])
+                : [];
+              if (!propsEqual(incoming, properties)) {
+                setProperties(incoming);
+              }
+              // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [field.value]);
 
             const addProperty = () => {
               const label = newLabel.trim();
               if (!label) return;
-              updateProps([...properties, { label, values: [] }]);
+              setProperties((prev) => [...prev, { label, values: [] }]);
               setNewLabel("");
             };
 
+            const removeProperty = (index: number) => {
+              setProperties((prev) => prev.filter((_, i) => i !== index));
+              setNewValues((prev) => {
+                const next = { ...prev };
+                delete next[index];
+                return next;
+              });
+            };
+
+            const setValueInput = (index: number, val: string) => {
+              setNewValues((prev) => ({ ...prev, [index]: val }));
+            };
+
             const addValue = (index: number) => {
-              const val = newValue.trim();
+              const val = (newValues[index] ?? "").trim();
               if (!val) return;
-              updateProps((prev) => {
+              setProperties((prev) => {
                 const copy = prev.map((p) => ({ ...p, values: [...p.values] }));
                 copy[index].values.push(val);
                 return copy;
               });
-              setNewValue("");
-            };
-
-            const removeProperty = (index: number) => {
-              updateProps(properties.filter((_, i) => i !== index));
+              setValueInput(index, "");
             };
 
             return (
@@ -72,6 +115,9 @@ const CustomProperties = ({ control, errors }: any) => {
                         <button
                           type="button"
                           onClick={() => removeProperty(index)}
+                          className="p-1 hover:opacity-80"
+                          aria-label="Remove property"
+                          title="Remove property"
                         >
                           <X size={18} className="text-red-500" />
                         </button>
@@ -83,8 +129,8 @@ const CustomProperties = ({ control, errors }: any) => {
                           type="text"
                           className="border outline-none border-gray-700 bg-gray-800 p-2 rounded-md text-white w-full"
                           placeholder="Enter value..."
-                          onChange={(e) => setNewValue(e.target.value)}
-                          value={newValue}
+                          onChange={(e) => setValueInput(index, e.target.value)}
+                          value={newValues[index] ?? ""}
                         />
                         <button
                           type="button"
@@ -118,10 +164,11 @@ const CustomProperties = ({ control, errors }: any) => {
                     />
                     <button
                       type="button"
-                      className="px-3 py-1 bg-blue-500 text-white rounded-md flex items-center"
+                      className="px-3 py-1 bg-blue-500 text-white rounded-md flex items-center gap-1"
                       onClick={addProperty}
                     >
-                      <Plus size={16} /> Add
+                      <Plus size={16} />
+                      Add
                     </button>
                   </div>
                 </div>
