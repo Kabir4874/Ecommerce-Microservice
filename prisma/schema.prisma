@@ -108,6 +108,7 @@ model products {
   slug                  String        @unique
   category              String
   subCategory           String
+  totalSales            Int           @default(0)
   short_description     String
   detailed_description  String
   images                images[]
