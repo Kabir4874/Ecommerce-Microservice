@@ -3,7 +3,7 @@ import api from "../app/api/api";
 
 // !fetch user data from API
 const fetchUser = async () => {
-  const response = await api.get("/logged-in-user");
+  const response = await api.get("/api/logged-in-user");
   console.log(response, "response");
   return response.data.user;
 };

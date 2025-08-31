@@ -20,6 +20,12 @@ const nextConfig = {
       {
         hostname: "media.istockphoto.com",
       },
+      {
+        hostname: "developers.elementor.com",
+      },
+      {
+        hostname: "www.largeherds.co.za",
+      },
     ],
   },
 };
