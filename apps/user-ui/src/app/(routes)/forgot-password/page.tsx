@@ -67,7 +67,7 @@ const ForgotPassword = () => {
   const verifyOtpMutation = useMutation({
     mutationFn: async () => {
       if (!userEmail) return;
-      const response = await api.post("/verify-forgot-password-user", {
+      const response = await api.post("/api/verify-forgot-password-user", {
         email: userEmail,
         otp: otp.join(""),
       });
@@ -88,7 +88,7 @@ const ForgotPassword = () => {
   const resetPasswordMutation = useMutation({
     mutationFn: async ({ password }: { password: string }) => {
       if (!userEmail) return;
-      const response = await api.post("reset-password-user", {
+      const response = await api.post("/api/reset-password-user", {
         email: userEmail,
         newPassword: password,
       });

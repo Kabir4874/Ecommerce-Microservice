@@ -5,6 +5,7 @@ import {
 } from "@packages/error-handler";
 import { uploadImageToImageKit } from "@packages/libs/imagekit";
 import prisma from "@packages/libs/prisma";
+import { Prisma } from "@prisma/client";
 import { NextFunction, Request, Response } from "express";
 
 // !get product category
@@ -237,7 +238,7 @@ export const createProduct = async (
   }
 };
 
-// !get products
+// !get products by shop
 export const getProducts = async (
   req: any,
   res: Response,
@@ -305,6 +306,7 @@ export const deleteProduct = async (
   }
 };
 
+//! restore product
 export const restoreProduct = async (
   req: any,
   res: Response,
@@ -341,5 +343,77 @@ export const restoreProduct = async (
     return res.status(200).json({ message: "Product successfully restored!" });
   } catch (error) {
     return next(error);
+  }
+};
+
+// ! get all products
+export const getAllProducts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit as string) || 20, 1),
+      100
+    );
+    const skip = (page - 1) * limit;
+    const type = (req.query.type as string) || "topSales";
+
+    const now = new Date();
+
+    const baseFilter: Prisma.productsWhereInput = {
+      AND: [
+        {
+          OR: [
+            { starting_date: { isSet: false } },
+            { starting_date: { equals: null } },
+            { starting_date: { lte: now } },
+          ],
+        },
+        {
+          OR: [
+            { ending_date: { isSet: false } },
+            { ending_date: { equals: null } },
+            { ending_date: { gte: now } },
+          ],
+        },
+        { isDeleted: { not: true } },
+        { status: "Active" as any },
+      ],
+    };
+
+    const orderBy: Prisma.productsOrderByWithRelationInput =
+      type === "latest" ? { createdAt: "desc" } : { totalSales: "desc" };
+
+    const [products, total, top10Products] = await Promise.all([
+      prisma.products.findMany({
+        skip,
+        take: limit,
+        include: { images: true, shop: true },
+        where: baseFilter,
+        orderBy,
+      }),
+      prisma.products.count({ where: baseFilter }),
+      prisma.products.findMany({
+        take: 10,
+        where: baseFilter,
+        orderBy,
+        include: { images: true, shop: true },
+      }),
+    ]);
+
+    res.status(200).json({
+      products,
+      top10By: type === "latest" ? "latest" : "topSales",
+      top10Products,
+      total,
+      currentPage: page,
+      pageSize: limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    });
+  } catch (error) {
+    next(error);
   }
 };
