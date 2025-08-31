@@ -1,5 +1,5 @@
 "use client";
-import { MapPin } from "lucide-react";
+import { MapPin, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -92,11 +92,37 @@ const ProductDetailsCard = ({
                 </div>
               </div>
               <button
-                className="flex cursor-pointer items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+                className="flex cursor-pointer items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition hover:scale-110"
                 onClick={() => router.push(`/inbox?shopId=${data?.shop?.id}`)}
               >
                 Chat with Seller
               </button>
+              <button className="w-full absolute cursor-pointer right-[-5px] top-[-5px] flex justify-end my-2 mt-[-10px]">
+                <X size={25} onClick={() => setOpen(false)} />
+              </button>
+            </div>
+
+            <h3 className="text-xl font-semibold mt-3">{data?.title}</h3>
+            <p className="mt-2 text-gray-700 whitespace-pre-wrap w-full">
+              {data?.short_description}
+            </p>
+            {data?.brand && (
+              <p className="mt-2">
+                <strong>Brand:</strong> {data?.brand}
+              </p>
+            )}
+
+            <div className="flex flex-col md:flex-row items-start gap-5 mt-4">
+                {data?.colors?.length>0 && (
+                    <div>
+                        <strong>Color:</strong>
+                        <div className="flex gap-2 mt-1">
+                            {data.colors.map((color:string,index:number)=>(
+                                <button key={index} className={`w-8 h-8 cursor-pointer rounded-full border-2 transition ${isSelected===color}`}></button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
           </div>
         </div>
